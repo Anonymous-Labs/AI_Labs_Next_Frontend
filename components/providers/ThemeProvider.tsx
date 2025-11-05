@@ -21,13 +21,13 @@ function applyTheme(value: Theme) {
 }
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem("theme");
   if (stored === "light" || stored === "dark" || stored === "system") return stored;
-  return "system";
+  return "light";
 }
 
-export function ThemeProvider({ children, defaultTheme = "system" as Theme }: { children: React.ReactNode; defaultTheme?: Theme }) {
+export function ThemeProvider({ children, defaultTheme = "light" as Theme }: { children: React.ReactNode; defaultTheme?: Theme }) {
   const [theme, setThemeState] = useState<Theme>(defaultTheme);
 
   useEffect(() => {
@@ -72,11 +72,11 @@ export function useTheme() {
 }
 
 export function ThemeScript() {
-  // Prevent FOUC: run before React hydration
+  // Prevent FOUC: run before React hydration - default to light theme
   return (
     <script
       dangerouslySetInnerHTML={{
-        __html: `(() => {try {const stored = localStorage.getItem('theme'); const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const t = (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'system'; const dark = t === 'dark' || (t === 'system' && systemDark); document.documentElement.classList.toggle('dark', dark);} catch (e) {}})();`,
+        __html: `(() => {try {const stored = localStorage.getItem('theme'); const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; const t = (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'light'; const dark = t === 'dark' || (t === 'system' && systemDark); document.documentElement.classList.toggle('dark', dark);} catch (e) {}})();`,
       }}
     />
   );

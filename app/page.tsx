@@ -19,6 +19,7 @@ import {
   type Connection,
 } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
+import { Footer } from "@/components/layout/Footer";
 import "@xyflow/react/dist/style.css";
 
 const initialNodes: Node[] = [
@@ -57,21 +58,30 @@ export default function WorkspacePage() {
 
   return (
     <AuthGuard>
-      <div className="flex h-screen w-screen flex-col">
-        <header className="flex h-14 items-center justify-between border-b bg-background px-4">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">AI Lab Workspace</h1>
-            {user && (
-              <span className="text-sm text-muted-foreground">
-                {user.first_name || user.email}
-              </span>
-            )}
+      <div className="flex h-screen w-screen flex-col bg-background">
+        <header className="border-b border-border bg-background shadow-sm">
+          <div className="mx-auto flex h-16 max-w-full items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <span className="text-lg font-bold">AI</span>
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-foreground">AI Lab Workspace</h1>
+                {user && (
+                  <p className="text-xs text-muted-foreground">
+                    {user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={signOut}>
+                Sign out
+              </Button>
+            </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            Sign out
-          </Button>
         </header>
-        <div className="flex-1">
+        <div className="flex-1 overflow-hidden">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -82,10 +92,11 @@ export default function WorkspacePage() {
             edgeTypes={edgeTypes}
             proOptions={{ hideAttribution: true }}
             fitView
+            className="bg-background"
           >
-            <Controls />
-            <MiniMap />
-            <Background variant={BackgroundVariant.Lines} gap={12} size={1} />
+            <Controls className="border-border bg-card shadow-sm" />
+            <MiniMap className="border-border bg-card shadow-sm" />
+            <Background variant={BackgroundVariant.Lines} gap={12} size={1} color="#dadce0" />
           </ReactFlow>
         </div>
       </div>

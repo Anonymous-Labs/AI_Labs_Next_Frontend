@@ -18,11 +18,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Lab - Next Generation AI Workspace",
-  description: "Professional AI development workspace with React Flow",
-  keywords: ["AI", "Machine Learning", "Workspace", "React Flow"],
+  title: "AI Lab - Build Intelligent Applications",
+  description: "The next generation AI workspace for building intelligent applications. Create, collaborate, and innovate with cutting-edge AI tools.",
+  keywords: ["AI", "Machine Learning", "Workspace", "React Flow", "AI Development", "Collaboration"],
   authors: [{ name: "AI Lab" }],
   viewport: "width=device-width, initial-scale=1",
+  themeColor: "#1a73e8",
+  openGraph: {
+    title: "AI Lab - Build Intelligent Applications",
+    description: "The next generation AI workspace for building intelligent applications.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
