@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useAuthStore } from "@/store/auth.store";
 import { AuthGuard } from "@/components/providers/AuthGuard";
 import {
   Background,
   BackgroundVariant,
+  Panel,
+  Position,
   Controls,
   MiniMap,
   ReactFlow,
+  ReactFlowProvider,
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
@@ -17,17 +20,63 @@ import {
   type NodeChange,
   type EdgeChange,
   type Connection,
+  useReactFlow,
+  useViewport,
 } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/layout/Footer";
 import "@xyflow/react/dist/style.css";
+import { ChevronDown, Play, Square, Save, Plus, ZoomIn, ZoomOut, LayoutGrid, Share2, Search, Cpu, Github, HelpCircle, User, Bell, MessageSquare, History, Wand2, FileUp, FileDown, BookOpen, Bug, Eye, EyeOff, PanelLeft, PanelRight, Grid3X3, MoreHorizontal, GitBranch, Upload, Download, Users, Settings as SettingsIcon, CalendarClock, RefreshCw, RotateCw } from "lucide-react";
+import IntegerNode, { integerNodeDefinition, type IntegerNodeData } from "@/components/flow/nodes/IntegerNode";
+import Add2IntNode, { add2IntNodeDefinition } from "@/components/flow/nodes/Add2IntNode";
+import TextNode, { textNodeDefinition } from "@/components/flow/nodes/TextNode";
+import { Input } from "@/components/ui/input";
 
 const initialNodes: Node[] = [
-  { id: "n1", position: { x: 0, y: 0 }, data: { label: "Node 1" } },
-  { id: "n2", position: { x: 0, y: 100 }, data: { label: "Node 2" } },
+  { id: "dataset", position: { x: -600, y: -200 }, data: { label: "Dataset: Customer Events" }, type: "input" },
+  { id: "ingest", position: { x: -350, y: -200 }, data: { label: "Ingest: Kafka -> Lake" } },
+  { id: "validate", position: { x: -100, y: -200 }, data: { label: "Validate: Great Expectations" } },
+  { id: "clean", position: { x: 150, y: -200 }, data: { label: "Clean: Nulls & Outliers" } },
+  { id: "feature", position: { x: 400, y: -200 }, data: { label: "Feature Eng: Timewindows" } },
+
+  { id: "split", position: { x: 650, y: -200 }, data: { label: "Split: Train/Val/Test" } },
+  { id: "train", position: { x: 900, y: -240 }, data: { label: "Train: XGBoost" } },
+  { id: "train2", position: { x: 900, y: -160 }, data: { label: "Train: LightGBM" } },
+  { id: "select", position: { x: 1150, y: -200 }, data: { label: "Model Select: Best Metric" } },
+
+  { id: "eval", position: { x: 1400, y: -200 }, data: { label: "Evaluate: ROC/AUC" }, type: "output" },
+  { id: "explain", position: { x: 1650, y: -240 }, data: { label: "Explain: SHAP" } },
+  { id: "monitor", position: { x: 1650, y: -160 }, data: { label: "Monitor: Drift" } },
+  { id: "deploy", position: { x: 1900, y: -200 }, data: { label: "Deploy: REST Endpoint" }, type: "output" },
+
+  { id: "viz", position: { x: 400, y: 100 }, data: { label: "Visualize: Embeddings" } },
+  { id: "label", position: { x: 150, y: 100 }, data: { label: "Label Studio" } },
+  { id: "augment", position: { x: -100, y: 100 }, data: { label: "Augment: SMOTE" } },
+  { id: "cache", position: { x: -350, y: 100 }, data: { label: "Cache: Feature Store" } },
+  { id: "catalog", position: { x: -600, y: 100 }, data: { label: "Data Catalog" }, type: "input" },
 ];
 
-const initialEdges: Edge[] = [{ id: "n1-n2", source: "n1", target: "n2" }];
+const initialEdges: Edge[] = [
+  { id: "e-dataset-ingest", source: "dataset", target: "ingest" },
+  { id: "e-ingest-validate", source: "ingest", target: "validate" },
+  { id: "e-validate-clean", source: "validate", target: "clean" },
+  { id: "e-clean-feature", source: "clean", target: "feature" },
+  { id: "e-feature-split", source: "feature", target: "split" },
+  { id: "e-split-train", source: "split", target: "train" },
+  { id: "e-split-train2", source: "split", target: "train2" },
+  { id: "e-trains-select-1", source: "train", target: "select" },
+  { id: "e-trains-select-2", source: "train2", target: "select" },
+  { id: "e-select-eval", source: "select", target: "eval" },
+  { id: "e-eval-explain", source: "eval", target: "explain" },
+  { id: "e-eval-monitor", source: "eval", target: "monitor" },
+  { id: "e-eval-deploy", source: "eval", target: "deploy" },
+
+  { id: "e-feature-viz", source: "feature", target: "viz" },
+  { id: "e-label-augment", source: "label", target: "augment" },
+  { id: "e-augment-clean", source: "augment", target: "clean" },
+  { id: "e-cache-feature", source: "cache", target: "feature" },
+  { id: "e-catalog-cache", source: "catalog", target: "cache" },
+];
 
 /**
  * Workspace Page - React Flow Canvas
@@ -35,69 +84,874 @@ const initialEdges: Edge[] = [{ id: "n1-n2", source: "n1", target: "n2" }];
  */
 export default function WorkspacePage() {
   const { signOut, user } = useAuthStore();
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+  const [activeMenu, setActiveMenu] = useState<null | "File" | "Edit" | "View" | "Insert" | "Runtime" | "Tools" | "Help">(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("Untitled Workspace");
+  const [runtimeOpen, setRuntimeOpen] = useState(false);
+  const [runtimeType, setRuntimeType] = useState<"CPU" | "GPU" | "TPU">("GPU");
+  const [showPalette, setShowPalette] = useState(true);
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
+  function CanvasArea({ showPalette, setShowPalette }: { showPalette: boolean; setShowPalette: (v: boolean) => void }) {
+    const [nodes, setNodes] = useState<Node[]>(initialNodes);
+    const [edges, setEdges] = useState<Edge[]>(initialEdges);
+    const idCounter = useRef<number>(1000);
+    const { setViewport, zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
+    const viewport = useViewport();
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
-  );
+    const onNodesChange = useCallback(
+      (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
+      []
+    );
 
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    []
-  );
+    const onEdgesChange = useCallback(
+      (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+      []
+    );
 
-  const nodeTypes = useMemo(() => ({}), []);
-  const edgeTypes = useMemo(() => ({}), []);
+    const onConnect = useCallback(
+      (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+      []
+    );
+
+    const nodeTypes = useMemo(() => ({
+      integer: IntegerNode as any,
+      add2int: Add2IntNode as any,
+      text: TextNode as any,
+    }), []);
+    const nodeDefs = useMemo(() => ({
+      integer: integerNodeDefinition,
+      add2int: add2IntNodeDefinition,
+      text: textNodeDefinition,
+    }), []);
+    const edgeTypes = useMemo(() => ({}), []);
+
+    const addNode = useCallback(
+      (label: string, type?: Node["type"], extraData?: Record<string, unknown>) => {
+        const id = `n-${idCounter.current++}`;
+        const centerPoint = {
+          x: (window.innerWidth / 2 - 200 - viewport.x) / viewport.zoom,
+          y: (window.innerHeight / 2 - 100 - viewport.y) / viewport.zoom,
+        };
+        const def = type ? (nodeDefs as any)[type] : undefined;
+        const baseData = def?.getInitialData ? def.getInitialData() : { label };
+        setNodes((prev) => [
+          ...prev,
+          {
+            id,
+            data: {
+              ...(baseData as any),
+              ...(extraData || {}),
+              ...(type === "integer"
+                ? {
+                    onChange: (next: number) => {
+                      setNodes((p) =>
+                        p.map((n) =>
+                          n.id === id
+                            ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), value: next } } }
+                            : n
+                        )
+                      );
+                    },
+                  }
+                : type === "add2int"
+                ? {
+                    onChangeA: (next: number) => {
+                      setNodes((p) => p.map((n) => (n.id === id ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), a: next } } } : n)));
+                    },
+                    onChangeB: (next: number) => {
+                      setNodes((p) => p.map((n) => (n.id === id ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), b: next } } } : n)));
+                    },
+                  }
+                : {}),
+            },
+            type,
+            position: { x: centerPoint.x + Math.random() * 120 - 60, y: centerPoint.y + Math.random() * 80 - 40 },
+          },
+        ]);
+        return id;
+      },
+      [viewport.x, viewport.y, viewport.zoom, setNodes, nodeDefs]
+    );
+
+    const addConnected = useCallback(
+      (fromId: string, label: string, type?: Node["type"]) => {
+        const toId = addNode(label, type);
+        setEdges((prev) => [...prev, { id: `e-${fromId}-${toId}`, source: fromId, target: toId }]);
+      },
+      [addNode]
+    );
+
+    const addNodeAt = useCallback(
+      (label: string, position: { x: number; y: number }, type?: Node["type"], extraData?: Record<string, unknown>) => {
+        const id = `n-${idCounter.current++}`;
+        const def = type ? (nodeDefs as any)[type] : undefined;
+        const baseData = def?.getInitialData ? def.getInitialData() : { label };
+        setNodes((prev) => [
+          ...prev,
+          {
+            id,
+            data: {
+              ...(baseData as any),
+              ...(extraData || {}),
+              ...(type === "integer"
+                ? {
+                    onChange: (next: number) => {
+                      setNodes((p) =>
+                        p.map((n) =>
+                          n.id === id
+                            ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), value: next } } }
+                            : n
+                        )
+                      );
+                    },
+                  }
+                : type === "add2int"
+                ? {
+                    onChangeA: (next: number) => {
+                      setNodes((p) => p.map((n) => (n.id === id ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), a: next } } } : n)));
+                    },
+                    onChangeB: (next: number) => {
+                      setNodes((p) => p.map((n) => (n.id === id ? { ...n, data: { ...(n.data as any), props: { ...((n.data as any).props || {}), b: next } } } : n)));
+                    },
+                  }
+                : {}),
+            },
+            type,
+            position,
+          },
+        ]);
+        return id;
+      },
+      [setNodes, nodeDefs]
+    );
+
+    const handleAutoLayout = useCallback(() => {
+      setNodes((prev) => {
+        const sorted = [...prev].sort((a, b) => a.position.x - b.position.x);
+        const layers: Record<number, Node[]> = {};
+        sorted.forEach((n) => {
+          const bucket = Math.round(n.position.x / 250);
+          layers[bucket] ||= [];
+          layers[bucket].push(n);
+        });
+        const next: Node[] = [];
+        Object.keys(layers)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((bucketIdx) => {
+            const col = layers[bucketIdx];
+            col.forEach((n, row) => {
+              next.push({
+                ...n,
+                position: { x: bucketIdx * 250, y: -200 + row * 110 },
+              });
+            });
+          });
+        return next;
+      });
+      setTimeout(() => fitView({ padding: 0.2, duration: 600 }), 0);
+    }, [fitView]);
+
+    const onDragOver = useCallback((event: React.DragEvent) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    }, []);
+
+    const onDrop = useCallback(
+      (event: React.DragEvent) => {
+        event.preventDefault();
+        const payload = event.dataTransfer.getData("application/reactflow");
+        if (!payload) return;
+        try {
+          const { label, type, data: extraData } = JSON.parse(payload) as { label: string; type?: Node["type"]; data?: Record<string, unknown> };
+          const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          addNodeAt(label, position, type, extraData);
+        } catch {
+          // ignore malformed drag payloads
+        }
+      },
+      [addNodeAt, screenToFlowPosition]
+    );
+
+    const updateNodeData = useCallback((id: string, patch: Record<string, unknown>) => {
+      setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, data: { ...(n.data as any), ...patch } } : n)));
+    }, []);
+    const updateNodeDataBy = useCallback((id: string, updater: (prev: any) => any) => {
+      setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, data: updater(n.data) } : n)));
+    }, []);
+
+    const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || nodes.find((n) => (n as any).selected), [nodes, selectedNodeId]);
+
+    // Dataflow: derive sink node inputs from connected sources, and lock inputs when connected
+    useEffect(() => {
+      setNodes((prev) => {
+        let changed = false;
+        const next = prev.map((node) => {
+          if (node.type === "add2int") {
+            const inEdges = edges.filter((e) => e.target === node.id);
+            const aEdge = inEdges.find((e) => (e as any).targetHandle === "in-a");
+            const bEdge = inEdges.find((e) => (e as any).targetHandle === "in-b");
+
+            const findSourceValue = (edge: Edge | undefined): number | undefined => {
+              if (!edge) return undefined;
+              const src = prev.find((n) => n.id === edge.source);
+              if (!src) return undefined;
+              if (src.type === "integer") {
+                const v = (src.data as any)?.props?.value;
+                return typeof v === "number" ? v : undefined;
+              }
+              return undefined;
+            };
+
+            const aVal = findSourceValue(aEdge);
+            const bVal = findSourceValue(bEdge);
+            const locks = { a: Boolean(aEdge), b: Boolean(bEdge) };
+
+            const currProps = (node.data as any)?.props || {};
+            const currLocks = (node.data as any)?.locks || {};
+
+            const nextProps = { ...currProps } as any;
+            if (aVal !== undefined) nextProps.a = aVal;
+            if (bVal !== undefined) nextProps.b = bVal;
+
+            const needProps = (aVal !== undefined && nextProps.a !== currProps.a) || (bVal !== undefined && nextProps.b !== currProps.b);
+            const needLocks = locks.a !== currLocks.a || locks.b !== currLocks.b;
+
+            if (needProps || needLocks) {
+              changed = true;
+              return {
+                ...node,
+                data: {
+                  ...(node.data as any),
+                  props: { ...currProps, ...nextProps },
+                  locks,
+                },
+              };
+            }
+          }
+          if (node.type === "text") {
+            const inEdge = edges.find((e) => e.target === node.id);
+            const currProps = (node.data as any)?.props || {};
+
+            const getValueFromSource = (): any => {
+              if (!inEdge) return currProps.value;
+              const src = prev.find((n) => n.id === inEdge.source);
+              if (!src) return currProps.value;
+              if (src.type === "integer") {
+                return (src.data as any)?.props?.value ?? currProps.value;
+              }
+              if (src.type === "add2int") {
+                const a = (src.data as any)?.props?.a;
+                const b = (src.data as any)?.props?.b;
+                if (typeof a === "number" && typeof b === "number") return a + b;
+              }
+              return currProps.value;
+            };
+
+            const nextVal = getValueFromSource();
+            if (nextVal !== currProps.value) {
+              changed = true;
+              return {
+                ...node,
+                data: {
+                  ...(node.data as any),
+                  props: { ...currProps, value: nextVal },
+                },
+              };
+            }
+          }
+          return node;
+        });
+        return changed ? next : prev;
+      });
+    }, [edges, nodes]);
+
+    return (
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onSelectionChange={({ nodes: sel }) => setSelectedNodeId(sel[0]?.id ?? null)}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        proOptions={{ hideAttribution: true }}
+        fitView
+        className="bg-background"
+      >
+        {/* Top Panel (toolbar) */}
+        <Panel position="top-center" className="rounded-md border border-border bg-card/95 backdrop-blur px-3 py-2 shadow-sm flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "input")}>Add Dataset</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Processor")}>Add Processor</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Model")}>Add Model</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Metric", "output")}>Add Metric</Button>
+          <div className="mx-2 h-5 w-px bg-border" />
+          <Button size="sm" variant="outline" onClick={() => zoomIn({ duration: 200 })}>Zoom In</Button>
+          <Button size="sm" variant="outline" onClick={() => zoomOut({ duration: 200 })}>Zoom Out</Button>
+          <Button size="sm" variant="default" onClick={() => fitView({ padding: 0.2, duration: 400 })}>Fit</Button>
+          <Button size="sm" variant="default" onClick={handleAutoLayout}>Auto Layout</Button>
+        </Panel>
+
+        {/* Left Panel (palette) */}
+        {showPalette ? (
+        <Panel position="top-left" className="m-3 w-72 rounded-md border border-border bg-card/95 backdrop-blur p-3 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Palette (drag items to canvas)</p>
+            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setShowPalette(false)} title="Collapse palette">
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </div>
+          <Palette categories={[
+            {
+              id: "input",
+              title: "Inputs & Sources",
+              items: [
+                { label: "Data Source: S3", type: "input" },
+                { label: "Data Source: GCS", type: "input" },
+                { label: "Data Source: Azure Blob", type: "input" },
+                { label: "Ingest: Kafka" },
+                { label: "Ingest: Kinesis" },
+                { label: "Ingest: REST" },
+                { label: "Query: BigQuery" },
+                { label: "Query: Snowflake" },
+                { label: "Query: Postgres" },
+                { label: "Integer", type: "integer" },
+              ],
+            },
+            {
+              id: "pre",
+              title: "Pre-processing",
+              items: [
+                { label: "Validate: Great Expectations" },
+                { label: "Clean: Missing/Outliers" },
+                { label: "Normalize & Scale" },
+                { label: "Encode: One-Hot/Label" },
+                { label: "Feature Store" },
+                { label: "Time Window Aggregations" },
+                { label: "Augment: SMOTE" },
+                { label: "Split: Train/Val/Test" },
+              ],
+            },
+            {
+              id: "feature",
+              title: "Feature Engineering",
+              items: [
+                { label: "Text: TF-IDF" },
+                { label: "Text: Embeddings" },
+                { label: "Vision: Resize/Augment" },
+                { label: "Tabular: PCA" },
+                { label: "Cross Features" },
+              ],
+            },
+            {
+              id: "models",
+              title: "Models",
+              items: [
+                { label: "Train: XGBoost" },
+                { label: "Train: LightGBM" },
+                { label: "Train: CatBoost" },
+                { label: "Train: Scikit-learn" },
+                { label: "Train: PyTorch" },
+                { label: "Train: TensorFlow" },
+                { label: "Train: LLM Fine-tune" },
+              ],
+            },
+            {
+              id: "arith",
+              title: "Arithmetic",
+              items: [
+                { label: "Add2Int", type: "add2int" },
+              ],
+            },
+            {
+              id: "eval",
+              title: "Evaluation & Metrics",
+              items: [
+                { label: "Evaluate: AUC", type: "output" },
+                { label: "Evaluate: F1 / Precision / Recall" },
+                { label: "Cross-Validation" },
+                { label: "Confusion Matrix" },
+                { label: "Calibration Curve" },
+              ],
+            },
+            {
+              id: "visual",
+              title: "Visualization",
+              items: [
+                { label: "Embeddings: UMAP" },
+                { label: "Embeddings: t-SNE" },
+                { label: "Feature Importance" },
+                { label: "Explain: SHAP" },
+              ],
+            },
+            {
+              id: "monitor",
+              title: "Monitoring",
+              items: [
+                { label: "Data Drift Monitor" },
+                { label: "Concept Drift Monitor" },
+                { label: "Model Performance Monitor" },
+                { label: "Alert Webhook" },
+              ],
+            },
+            {
+              id: "deploy",
+              title: "Deployment / Output",
+              items: [
+                { label: "Text Output", type: "text" },
+                { label: "Deploy: REST", type: "output" },
+                { label: "Deploy: gRPC", type: "output" },
+                { label: "Batch Scoring Job" },
+                { label: "A/B Experiment" },
+              ],
+            },
+            {
+              id: "orchestrate",
+              title: "Orchestration",
+              items: [
+                { label: "Trigger: Schedule" },
+                { label: "Trigger: Webhook" },
+                { label: "Branch / Condition" },
+                { label: "Parallel / Fan-out" },
+                { label: "Cache / Checkpoint" },
+              ],
+            },
+            {
+              id: "nlp",
+              title: "NLP",
+              items: [
+                { label: "Tokenize" },
+                { label: "NER" },
+                { label: "Sentiment" },
+                { label: "LLM: Prompt" },
+                { label: "LLM: RAG" },
+              ],
+            },
+            {
+              id: "cv",
+              title: "Computer Vision",
+              items: [
+                { label: "Image Loader" },
+                { label: "Augment: Flip/Rotate" },
+                { label: "Detect: YOLO" },
+                { label: "Segment: U-Net" },
+              ],
+            },
+            {
+              id: "utils",
+              title: "Utilities",
+              items: [
+                { label: "Python Script" },
+                { label: "Environment Var" },
+                { label: "Secrets Manager" },
+                { label: "HTTP Request" },
+                { label: "Slack Notification" },
+              ],
+            },
+          ]}
+          onDragStart={(item) => (event) => {
+            event.dataTransfer.setData("application/reactflow", JSON.stringify(item));
+            event.dataTransfer.effectAllowed = "move";
+          }}
+          />
+        </Panel>
+        ) : (
+          <Panel position="top-left" className="m-3">
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowPalette(true)} title="Open palette">
+              <PanelRight className="h-4 w-4" /> Palette
+            </Button>
+          </Panel>
+        )}
+
+        {/* Right Panel (inspector) */}
+        <Panel position="top-right" className="m-3 w-72 rounded-md border border-border bg-card/95 backdrop-blur p-3 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Inspector</p>
+            {selectedNode && (
+              <span className="text-[10px] text-muted-foreground">{selectedNode.type || "default"}</span>
+            )}
+          </div>
+          {!selectedNode ? (
+            <div className="space-y-2 text-xs text-muted-foreground">
+              <p>• Select a node to view its properties</p>
+              <p>• Use Auto Layout to tidy your graph</p>
+              <p>• Add nodes from the Palette</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(() => {
+                const type = selectedNode.type as string | undefined;
+                const def = type ? (nodeDefs as any)[type] : undefined;
+                if (def?.Inspector) {
+                  const InspectorComp = def.Inspector as React.ComponentType<{ data: any; onChange: (updater: (prev: any) => any) => void }>;
+                  return (
+                    <InspectorComp
+                      data={selectedNode.data}
+                      onChange={(updater) => updateNodeDataBy(selectedNode.id, updater)}
+                    />
+                  );
+                }
+                return (
+                  <div className="text-xs text-muted-foreground">No inspector available for this node.</div>
+                );
+              })()}
+
+              <div>
+                <label className="mb-1 block text-[10px] text-muted-foreground">Data</label>
+                <div className="rounded-md border border-border bg-muted/40 p-2 text-[10px] text-foreground">
+                  <pre className="whitespace-pre-wrap break-all">{JSON.stringify(selectedNode.data, null, 2)}</pre>
+                </div>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Bottom Panel (quick actions) */}
+        <Panel position="bottom-center" className="mb-3 rounded-md border border-border bg-card/95 backdrop-blur px-3 py-2 shadow-sm flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 })}>Reset View</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            const a = addNode("Experiment");
+            addConnected(a, "Train: CatBoost");
+          }}>Quick Experiment</Button>
+          <Button size="sm" variant="destructive" onClick={() => { setNodes([]); setEdges([]); }}>Clear</Button>
+        </Panel>
+
+        <Controls className="border-border bg-card shadow-sm" />
+        <MiniMap className="border-border bg-card shadow-sm" />
+        <Background variant={BackgroundVariant.Lines} gap={12} size={1} color="#dadce0" />
+      </ReactFlow>
+    );
+  }
+
+  function Palette({
+    categories,
+    onDragStart,
+  }: {
+    categories: Array<{ id: string; title: string; items: Array<{ label: string; type?: Node["type"] }> }>;
+    onDragStart: (item: { label: string; type?: Node["type"] }) => (e: React.DragEvent) => void
+  }) {
+    const [open, setOpen] = useState<Record<string, boolean>>({ input: true, pre: true, feature: true, models: true, eval: true, visual: true, monitor: true, deploy: true, orchestrate: true, nlp: false, cv: false, utils: false });
+    const [query, setQuery] = useState("");
+
+    const filtered = useMemo(() => {
+      const q = query.trim().toLowerCase();
+      if (!q) return categories;
+      return categories
+        .map((cat) => ({
+          ...cat,
+          items: cat.items.filter((i) => i.label.toLowerCase().includes(q)),
+        }))
+        .filter((cat) => cat.items.length > 0);
+    }, [categories, query]);
+
+    const totalCount = useMemo(() => categories.reduce((acc, c) => acc + c.items.length, 0), [categories]);
+    const visibleCount = useMemo(() => filtered.reduce((acc, c) => acc + c.items.length, 0), [filtered]);
+
+    // Expand all sections while searching
+    useEffect(() => {
+      if (query.trim().length > 0) {
+        const allOpen: Record<string, boolean> = {};
+        categories.forEach((c) => (allOpen[c.id] = true));
+        setOpen((prev) => ({ ...prev, ...allOpen }));
+      }
+    }, [query, categories]);
+
+    return (
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`Search ${totalCount} nodes…`}
+            className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-6 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+          {query && (
+            <button
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded px-1 text-[10px] text-muted-foreground hover:text-foreground"
+              onClick={() => setQuery("")}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="text-[10px] text-muted-foreground">{visibleCount} results</div>
+        <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
+          {filtered.length === 0 && (
+            <div className="text-center text-xs text-muted-foreground">No matching nodes</div>
+          )}
+          {filtered.map((cat) => (
+            <div key={cat.id} className="rounded-md border border-border">
+              <button
+                className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs font-medium"
+                onClick={() => setOpen((o) => ({ ...o, [cat.id]: !o[cat.id] }))}
+              >
+                <span className="text-foreground">{cat.title}</span>
+                <span className="text-[10px] text-muted-foreground mr-2">{cat.items.length}</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${open[cat.id] ? "rotate-180" : "rotate-0"}`} />
+              </button>
+              {open[cat.id] && (
+                <div className="border-t border-border p-2">
+                  <div className="space-y-1">
+                    {cat.items.map((item) => (
+                      <div
+                        key={`${cat.id}-${item.label}`}
+                        className="flex cursor-grab items-center justify-between rounded px-2 py-1 text-xs hover:bg-muted"
+                        draggable
+                        onDragStart={onDragStart(item)}
+                        title="Drag to canvas"
+                      >
+                        <span className="truncate text-foreground">{item.label}</span>
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthGuard>
       <div className="flex h-screen w-screen flex-col bg-background">
         <header className="border-b border-border bg-background shadow-sm">
-          <div className="mx-auto flex h-16 max-w-full items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <span className="text-lg font-bold">AI</span>
+          {/* Top Nav: App icon, title, menu bar, search, share, profile */}
+          <div className="mx-auto max-w-full px-2">
+            <div className="flex h-14 items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <span className="text-lg font-bold">AI</span>
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="bg-transparent text-sm font-medium text-foreground outline-none focus:ring-0"
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      aria-label="Workspace name"
+                    />
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Workspace</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Projects / Personal / <span className="text-foreground">{workspaceName}</span> • Auto-saved</div>
+                </div>
+
+                {/* Menu bar */}
+                <nav className="ml-4 hidden items-center gap-1 md:flex" onMouseLeave={() => setActiveMenu(null)}>
+                  {(["File","Edit","View","Insert","Runtime","Tools","Help"] as const).map((label) => (
+                    <div key={label} className="relative">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={`px-2 text-sm ${activeMenu===label?"bg-muted":""}`}
+                        onMouseEnter={() => setActiveMenu(label)}
+                        onClick={() => setActiveMenu((m)=>m===label?null:label)}
+                      >
+                        {label}
+                      </Button>
+                      {activeMenu===label && (
+                        <div className="absolute left-0 top-full z-30 mt-1 w-56 rounded-md border border-border bg-card p-1 shadow-lg">
+                          {label==="File" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Plus className="h-3.5 w-3.5" /> New Workspace</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">New from Template</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Open…</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Rename</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Make a copy</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><FileUp className="h-3.5 w-3.5" /> Import graph (JSON)</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><FileDown className="h-3.5 w-3.5" /> Export graph (JSON)</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Version history</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Publish workspace</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Page settings</button>
+                            </div>
+                          )}
+                          {label==="Edit" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Undo</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Redo</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Cut</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Copy</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Paste</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Find/Replace</button>
+                            </div>
+                          )}
+                          {label==="View" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><ZoomIn className="h-3.5 w-3.5" /> Zoom In</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><ZoomOut className="h-3.5 w-3.5" /> Zoom Out</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Fit to Screen</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2" onClick={() => setShowPalette((v)=>!v)}><PanelLeft className="h-3.5 w-3.5" /> Toggle Palette</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><PanelRight className="h-3.5 w-3.5" /> Toggle Inspector</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Grid3X3 className="h-3.5 w-3.5" /> Toggle Grid</button>
+                            </div>
+                          )}
+                          {label==="Insert" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Node: Dataset</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Node: Transformation</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Node: Model</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Node: Evaluation</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Node: Deployment</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">From Template Gallery…</button>
+                            </div>
+                          )}
+                          {label==="Runtime" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Play className="h-3.5 w-3.5" /> Run all</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Run selected</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Square className="h-3.5 w-3.5" /> Stop</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Restart runtime</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Clear outputs</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Change runtime type…</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Manage sessions</button>
+                            </div>
+                          )}
+                          {label==="Tools" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><LayoutGrid className="h-3.5 w-3.5" /> Auto Layout</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Validate Graph</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Wand2 className="h-3.5 w-3.5" /> Optimize Pipeline</button>
+                              <div className="my-1 h-px bg-border" />
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Generate Docs</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Manage Integrations</button>
+                            </div>
+                          )}
+                          {label==="Help" && (
+                            <div className="text-sm">
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><BookOpen className="h-3.5 w-3.5" /> Documentation</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Keyboard Shortcuts</button>
+                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Bug className="h-3.5 w-3.5" /> Report an issue</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </nav>
               </div>
-              <div>
-                <h1 className="text-lg font-semibold text-foreground">AI Lab Workspace</h1>
-                {user && (
-                  <p className="text-xs text-muted-foreground">
-                    {user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email}
-                  </p>
-                )}
+
+              <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 md:flex">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      className="h-8 w-56 rounded-md border border-border bg-background pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      placeholder="Search workspace"
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" className="gap-1">
+                    <Share2 className="h-4 w-4" /> Share
+                  </Button>
+                  <div className="relative">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setRuntimeOpen((o)=>!o)}>
+                      <Cpu className="h-4 w-4" /> {runtimeType}
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                    {runtimeOpen && (
+                      <div className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-border bg-card p-1 shadow-lg">
+                        {["CPU","GPU","TPU"].map((rt) => (
+                          <button key={rt} className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={() => { setRuntimeType(rt as any); setRuntimeOpen(false); }}>
+                            {rt}
+                          </button>
+                        ))}
+                        <div className="my-1 h-px bg-border" />
+                        <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Manage runtimes…</button>
+                      </div>
+                    )}
+                  </div>
+                  <Button size="sm" variant="ghost" aria-label="Notifications">
+                    <Bell className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" aria-label="Comments">
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="relative">
+                  <Button size="sm" variant="ghost" className="gap-1" onClick={() => setAccountOpen((o)=>!o)}>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  {accountOpen && (
+                    <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-border bg-card p-1 shadow-lg">
+                      <div className="px-2 py-2 text-xs text-muted-foreground">
+                        {user ? (user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email) : "Guest"}
+                      </div>
+                      <div className="my-1 h-px bg-border" />
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Profile</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Settings</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Keyboard Shortcuts</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Billing</button>
+                      <div className="my-1 h-px bg-border" />
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={signOut}>Sign out</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={signOut}>
-                Sign out
-              </Button>
+
+            {/* Secondary Toolbar */}
+            <div className="flex h-10 items-center justify-between border-t border-border">
+              <div className="flex items-center gap-1 py-1">
+                <Button size="sm" variant="default" className="gap-1"><Play className="h-4 w-4" /> Run all</Button>
+                <Button size="sm" variant="outline" className="gap-1">Run selected</Button>
+                <Button size="sm" variant="outline" className="gap-1"><Square className="h-4 w-4" /> Stop</Button>
+                <div className="mx-1 h-6 w-px bg-border" />
+                <Button size="sm" variant="ghost" className="gap-1"><Save className="h-4 w-4" /> Save</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><History className="h-4 w-4" /> Version</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><GitBranch className="h-4 w-4" /> Branch</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><Upload className="h-4 w-4" /> Publish</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><CalendarClock className="h-4 w-4" /> Schedule</Button>
+                <div className="mx-1 h-6 w-px bg-border" />
+                <Button size="sm" variant="ghost" className="gap-1"><Plus className="h-4 w-4" /> Add Node</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><LayoutGrid className="h-4 w-4" /> Auto Layout</Button>
+                <Button size="sm" variant="ghost" className="gap-1"><RotateCw className="h-4 w-4" /> Refresh</Button>
+                <div className="mx-1 h-6 w-px bg-border" />
+                <Button size="sm" variant="ghost" className="gap-1">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" className="gap-1">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" className="gap-1"><Eye className="h-4 w-4" /> Preview</Button>
+              </div>
+              <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+                <div className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5">
+                  <Cpu className="h-3.5 w-3.5" /> {runtimeType}: idle
+                </div>
+                <div className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5">
+                  <Github className="h-3.5 w-3.5" /> Synced
+                </div>
+                <div className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5">
+                  <Users className="h-3.5 w-3.5" /> Collaborators
+                </div>
+                <div className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5">
+                  <HelpCircle className="h-3.5 w-3.5" /> Help
+                </div>
+              </div>
             </div>
           </div>
         </header>
         <div className="flex-1 overflow-hidden">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            proOptions={{ hideAttribution: true }}
-            fitView
-            className="bg-background"
-          >
-            <Controls className="border-border bg-card shadow-sm" />
-            <MiniMap className="border-border bg-card shadow-sm" />
-            <Background variant={BackgroundVariant.Lines} gap={12} size={1} color="#dadce0" />
-          </ReactFlow>
+          <ReactFlowProvider>
+            <CanvasArea showPalette={showPalette} setShowPalette={setShowPalette} />
+          </ReactFlowProvider>
         </div>
       </div>
     </AuthGuard>
