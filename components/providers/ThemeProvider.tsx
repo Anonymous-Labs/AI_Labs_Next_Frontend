@@ -51,8 +51,8 @@ export function ThemeProvider({ children, defaultTheme = "light" as Theme }: { c
   }, []);
 
   const toggle = useCallback(() => {
-    setTheme((prev => (prev === "dark" ? "light" : "dark")) as Theme);
-  }, [setTheme]);
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [setTheme, theme]);
 
   const isDark = useMemo(() => {
     if (theme === "dark") return true;

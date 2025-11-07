@@ -73,7 +73,7 @@ export function useVerifyOtp() {
 
   return useMutation({
     mutationFn: (input: VerifyOtpInput) => {
-      const emailToUse = input.email || pendingEmail;
+      const emailToUse = input.email ?? pendingEmail ?? undefined;
       return AuthService.verifyOtp({ ...input, email: emailToUse });
     },
     onSuccess: (data, variables) => {
@@ -99,7 +99,7 @@ export function useResendOtp() {
 
   return useMutation({
     mutationFn: (input?: ResendOtpInput) => {
-      const emailToUse = input?.email || pendingEmail;
+      const emailToUse = input?.email ?? pendingEmail ?? undefined;
       return AuthService.resendOtp({ email: emailToUse });
     },
     onError: (error) => {

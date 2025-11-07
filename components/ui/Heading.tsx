@@ -4,7 +4,7 @@ export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
 type HeadingProps = React.HTMLAttributes<HTMLHeadingElement> & {
   level?: HeadingLevel;
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
   weight?: "normal" | "medium" | "semibold" | "bold";
   align?: "left" | "center" | "right";
   muted?: boolean;
@@ -27,7 +27,7 @@ const weightMap = {
 } as const;
 
 export function Heading({ level = 2, as, className, weight = "semibold", align = "left", muted = false, ...props }: HeadingProps) {
-  const Tag = (as ?? (`h${level}` as keyof JSX.IntrinsicElements)) as any;
+  const Tag = (as ?? (`h${level}` as keyof React.JSX.IntrinsicElements)) as any;
   return (
     <Tag
       className={cn(
