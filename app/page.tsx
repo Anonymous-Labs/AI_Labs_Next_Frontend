@@ -30,6 +30,12 @@ import { ChevronDown, Play, Square, Save, Plus, ZoomIn, ZoomOut, LayoutGrid, Sha
 import IntegerNode, { integerNodeDefinition, type IntegerNodeData } from "@/components/flow/nodes/IntegerNode";
 import Add2IntNode, { add2IntNodeDefinition } from "@/components/flow/nodes/Add2IntNode";
 import TextNode, { textNodeDefinition } from "@/components/flow/nodes/TextNode";
+import DatasetNode, { datasetNodeDefinition } from "@/components/flow/nodes/DatasetNode";
+import FeatureSelectionNode, { featureSelectionNodeDefinition } from "@/components/flow/nodes/FeatureSelectionNode";
+import TrainTestSplitNode, { trainTestSplitNodeDefinition } from "@/components/flow/nodes/TrainTestSplitNode";
+import LinearRegressionNode, { linearRegressionNodeDefinition } from "@/components/flow/nodes/LinearRegressionNode";
+import PredictNode, { predictNodeDefinition } from "@/components/flow/nodes/PredictNode";
+import EvaluationNode, { evaluationNodeDefinition } from "@/components/flow/nodes/EvaluationNode";
 import { Input } from "@/components/ui/input";
 
 const initialNodes: Node[] = [
@@ -118,11 +124,22 @@ export default function WorkspacePage() {
       integer: IntegerNode as any,
       add2int: Add2IntNode as any,
       text: TextNode as any,
+      dataset: DatasetNode as any,
+      featureSelection: FeatureSelectionNode as any, // Added FeatureSelectionNode
+      trainTestSplit: TrainTestSplitNode as any, // Added TrainTestSplitNode
+      linearRegression: LinearRegressionNode as any, // Added LinearRegressionNode
+      predict: PredictNode as any, // Added PredictNode
+      evaluation: EvaluationNode as any, // Added EvaluationNode
     }), []);
     const nodeDefs = useMemo(() => ({
       integer: integerNodeDefinition,
       add2int: add2IntNodeDefinition,
       text: textNodeDefinition,
+      dataset: datasetNodeDefinition,
+      trainTestSplit: trainTestSplitNodeDefinition, // Added TrainTestSplitNode definition
+      linearRegression: linearRegressionNodeDefinition, // Added LinearRegressionNode definition
+      predict: predictNodeDefinition, // Added PredictNode definition
+      evaluation: evaluationNodeDefinition, // Added EvaluationNode definition
     }), []);
     const edgeTypes = useMemo(() => ({}), []);
 
@@ -385,6 +402,7 @@ export default function WorkspacePage() {
       >
         {/* Top Panel (toolbar) */}
         <Panel position="top-center" className="rounded-md border border-border bg-card/95 backdrop-blur px-3 py-2 shadow-sm flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "dataset")}>Add Dataset</Button>
           <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "input")}>Add Dataset</Button>
           <Button size="sm" variant="secondary" onClick={() => addNode("Processor")}>Add Processor</Button>
           <Button size="sm" variant="secondary" onClick={() => addNode("Model")}>Add Model</Button>
@@ -420,6 +438,7 @@ export default function WorkspacePage() {
                 { label: "Query: Snowflake" },
                 { label: "Query: Postgres" },
                 { label: "Integer", type: "integer" },
+                { label: "Dataset", type: "dataset" }, // Added DatasetNode
               ],
             },
             {
@@ -434,6 +453,8 @@ export default function WorkspacePage() {
                 { label: "Time Window Aggregations" },
                 { label: "Augment: SMOTE" },
                 { label: "Split: Train/Val/Test" },
+                { label: "Feature Selection", type: "featureSelection" }, // Added FeatureSelectionNode
+                { label: "Train Test Split", type: "trainTestSplit" }, // Added TrainTestSplitNode to the palette
               ],
             },
             {
@@ -458,6 +479,8 @@ export default function WorkspacePage() {
                 { label: "Train: PyTorch" },
                 { label: "Train: TensorFlow" },
                 { label: "Train: LLM Fine-tune" },
+                { label: "Linear Regression", type: "linearRegression" }, // Added LinearRegressionNode to the palette
+                { label: "Predict", type: "predict" }, // Added PredictNode to the palette
               ],
             },
             {
@@ -476,6 +499,7 @@ export default function WorkspacePage() {
                 { label: "Cross-Validation" },
                 { label: "Confusion Matrix" },
                 { label: "Calibration Curve" },
+                { label: "Evaluation", type: "evaluation" }, // Added EvaluationNode to the palette
               ],
             },
             {
