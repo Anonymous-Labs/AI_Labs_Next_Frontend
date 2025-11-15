@@ -14,6 +14,11 @@ export interface CreateWorkspaceInput {
   name: string;
 }
 
+export interface WorkspaceGraphData {
+  nodes: unknown[];
+  edges: unknown[];
+}
+
 export class WorkspaceService {
   /**
    * Get all workspaces for the current user
@@ -52,6 +57,13 @@ export class WorkspaceService {
    */
   static async deleteWorkspace(id: number): Promise<void> {
     await api.delete(`/api/project/workspaces/${id}/`);
+  }
+
+  /**
+   * Save workspace graph data (nodes and edges)
+   */
+  static async saveWorkspaceGraph(id: number, graphData: WorkspaceGraphData): Promise<void> {
+    await api.patch(`/api/project/workspaces/${id}/`, { graph_data: graphData });
   }
 }
 

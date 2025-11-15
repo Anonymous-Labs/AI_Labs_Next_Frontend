@@ -30,6 +30,11 @@ import { ChevronDown, Play, Square, Save, Plus, ZoomIn, ZoomOut, LayoutGrid, Sha
 import { nodeComponents, nodeDefinitions } from "@/lib/flow/nodeRegistry";
 import { Input } from "@/components/ui/input";
 import { OpenWorkspaceModal } from "@/components/workspace/OpenWorkspaceModal";
+import { useWorkspaceStore } from "@/store/workspace.store";
+import { useCreateWorkspace, useUpdateWorkspace } from "@/api/hooks/use-workspace";
+import { generateWorkspaceName } from "@/lib/utils/workspace-names";
+import { WorkspaceService } from "@/api/services/workspace.service";
+import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 
 const initialNodes: Node[] = [];
 
@@ -72,17 +77,132 @@ const getWelcomeNodes = (): Node[] => [
 
 export default function WorkspacePage() {
   const { signOut, user } = useAuthStore();
+  const { id: workspaceId, name: workspaceName, isNew: isNewWorkspace, setWorkspace, hasWorkspace, saveState, setSaveState } = useWorkspaceStore();
+  const createWorkspaceMutation = useCreateWorkspace();
+  const updateWorkspaceMutation = useUpdateWorkspace();
   const [activeMenu, setActiveMenu] = useState<null | "File" | "Edit" | "View" | "Insert" | "Runtime" | "Tools" | "Help">(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [workspaceName, setWorkspaceName] = useState("Welcome to AI Labs");
-  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [runtimeType, setRuntimeType] = useState<"CPU" | "GPU" | "TPU">("GPU");
   const [showPalette, setShowPalette] = useState(true);
   const [openModalOpen, setOpenModalOpen] = useState(false);
-  const [isNewWorkspace, setIsNewWorkspace] = useState(true);
+  
+  // Debounced save function for graph
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debounced rename function
+  const renameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Refs for dynamic input sizing
+  const workspaceNameInputRef = useRef<HTMLInputElement>(null);
+  const workspaceNameMeasureRef = useRef<HTMLSpanElement>(null);
+  
+  const saveWorkspaceGraph = useCallback(async (nodes: Node[], edges: Edge[]) => {
+    if (!workspaceId) return;
+    
+    setSaveState("saving");
+    try {
+      await WorkspaceService.saveWorkspaceGraph(workspaceId, {
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+        })),
+        edges: edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        })),
+      });
+      setSaveState("saved");
+      // Reset to idle after 2 seconds
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (error) {
+      console.error("Failed to save workspace:", error);
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }, [workspaceId, setSaveState]);
+  
+  const debouncedSave = useCallback((nodes: Node[], edges: Edge[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveWorkspaceGraph(nodes, edges);
+    }, 1000); // 1 second debounce
+  }, [saveWorkspaceGraph]);
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  // Reset save state when workspace changes
+  useEffect(() => {
+    setSaveState("idle");
+  }, [workspaceId, setSaveState]);
+  
+  // Debounced workspace name update
+  const handleWorkspaceNameChange = useCallback((newName: string) => {
+    // Update local state immediately for responsive UI
+    setWorkspace({ name: newName });
+    
+    // Update input width based on content
+    if (workspaceNameMeasureRef.current && workspaceNameInputRef.current) {
+      workspaceNameMeasureRef.current.textContent = newName || "Untitled Workspace";
+      const width = workspaceNameMeasureRef.current.offsetWidth;
+      workspaceNameInputRef.current.style.width = `${Math.max(width + 16, 100)}px`;
+    }
+    
+    // Debounce API call
+    if (renameTimeoutRef.current) {
+      clearTimeout(renameTimeoutRef.current);
+    }
+    
+    if (!workspaceId) return; // Don't save if no workspace ID
+    
+    renameTimeoutRef.current = setTimeout(async () => {
+      try {
+        const updated = await updateWorkspaceMutation.mutateAsync({
+          id: workspaceId,
+          input: { name: newName },
+        });
+        // Update store with response from API
+        setWorkspace({ name: updated.name });
+      } catch (error) {
+        console.error("Failed to rename workspace:", error);
+        // Optionally revert to previous name on error
+      }
+    }, 800); // 800ms debounce for rename
+  }, [workspaceId, updateWorkspaceMutation, setWorkspace]);
+  
+  // Initialize input width on mount and when workspace name changes
+  useEffect(() => {
+    if (workspaceNameMeasureRef.current && workspaceNameInputRef.current) {
+      workspaceNameMeasureRef.current.textContent = workspaceName || "Untitled Workspace";
+      const width = workspaceNameMeasureRef.current.offsetWidth;
+      workspaceNameInputRef.current.style.width = `${Math.max(width + 16, 100)}px`;
+    }
+  }, [workspaceName]);
+  
+  // Cleanup rename timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (renameTimeoutRef.current) {
+        clearTimeout(renameTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  function CanvasArea({ showPalette, setShowPalette, isNewWorkspace }: { showPalette: boolean; setShowPalette: (v: boolean) => void; isNewWorkspace: boolean }) {
+  function CanvasArea({ showPalette, setShowPalette, isNewWorkspace, hasWorkspace, onSave }: { showPalette: boolean; setShowPalette: (v: boolean) => void; isNewWorkspace: boolean; hasWorkspace: boolean; onSave: (nodes: Node[], edges: Edge[]) => void }) {
     const [nodes, setNodes] = useState<Node[]>(isNewWorkspace ? getWelcomeNodes() : initialNodes);
     const [edges, setEdges] = useState<Edge[]>(initialEdges);
     const idCounter = useRef<number>(1000);
@@ -109,6 +229,21 @@ export default function WorkspacePage() {
       (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
       []
     );
+    
+    // Auto-save when nodes or edges change (debounced)
+    const isInitialMount = useRef(true);
+    useEffect(() => {
+      // Skip save on initial mount
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
+      
+      if (!hasWorkspace || isNewWorkspace) return;
+      if (nodes.length === 0 && edges.length === 0) return; // Don't save empty state
+      
+      onSave(nodes, edges);
+    }, [nodes, edges, hasWorkspace, isNewWorkspace, onSave]);
 
     // Dynamically build nodeTypes and nodeDefs from registry
     const nodeTypes = useMemo(() => {
@@ -293,12 +428,20 @@ export default function WorkspacePage() {
     }, [fitView]);
 
     const onDragOver = useCallback((event: React.DragEvent) => {
+      if (!hasWorkspace) {
+        event.preventDefault();
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
-    }, []);
+    }, [hasWorkspace]);
 
     const onDrop = useCallback(
       (event: React.DragEvent) => {
+        if (!hasWorkspace) {
+          event.preventDefault();
+          return;
+        }
         event.preventDefault();
         const payload = event.dataTransfer.getData("application/reactflow");
         if (!payload) return;
@@ -310,7 +453,7 @@ export default function WorkspacePage() {
           // ignore malformed drag payloads
         }
       },
-      [addNodeAt, screenToFlowPosition]
+      [addNodeAt, screenToFlowPosition, hasWorkspace]
     );
 
     const updateNodeData = useCallback((id: string, patch: Record<string, unknown>) => {
@@ -425,11 +568,14 @@ export default function WorkspacePage() {
       >
         {/* Top Panel (toolbar) */}
         <Panel position="top-center" className="rounded-md border border-border bg-card/95 backdrop-blur px-3 py-2 shadow-sm flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "dataset")}>Add Dataset</Button>
-          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "input")}>Add Dataset</Button>
-          <Button size="sm" variant="secondary" onClick={() => addNode("Processor")}>Add Processor</Button>
-          <Button size="sm" variant="secondary" onClick={() => addNode("Model")}>Add Model</Button>
-          <Button size="sm" variant="secondary" onClick={() => addNode("Metric", "output")}>Add Metric</Button>
+          {!hasWorkspace && (
+            <div className="text-xs text-muted-foreground mr-2">Create a workspace to start building</div>
+          )}
+          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "dataset")} disabled={!hasWorkspace}>Add Dataset</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Dataset", "input")} disabled={!hasWorkspace}>Add Dataset</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Processor")} disabled={!hasWorkspace}>Add Processor</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Model")} disabled={!hasWorkspace}>Add Model</Button>
+          <Button size="sm" variant="secondary" onClick={() => addNode("Metric", "output")} disabled={!hasWorkspace}>Add Metric</Button>
           <div className="mx-2 h-5 w-px bg-border" />
           <Button size="sm" variant="outline" onClick={() => zoomIn({ duration: 200 })}>Zoom In</Button>
           <Button size="sm" variant="outline" onClick={() => zoomOut({ duration: 200 })}>Zoom Out</Button>
@@ -446,6 +592,11 @@ export default function WorkspacePage() {
               <PanelLeft className="h-4 w-4" />
             </Button>
           </div>
+          {!hasWorkspace && (
+            <div className="mb-2 rounded-md bg-muted/50 border border-border p-2 text-xs text-muted-foreground">
+              Create a workspace to enable drag & drop
+            </div>
+          )}
           <Palette categories={[
             {
               id: "input",
@@ -601,9 +752,14 @@ export default function WorkspacePage() {
             },
           ]}
           onDragStart={(item) => (event) => {
+            if (!hasWorkspace) {
+              event.preventDefault();
+              return;
+            }
             event.dataTransfer.setData("application/reactflow", JSON.stringify(item));
             event.dataTransfer.effectAllowed = "move";
           }}
+          hasWorkspace={hasWorkspace}
           />
         </Panel>
         ) : (
@@ -677,9 +833,11 @@ export default function WorkspacePage() {
   function Palette({
     categories,
     onDragStart,
+    hasWorkspace,
   }: {
     categories: Array<{ id: string; title: string; items: Array<{ label: string; type?: Node["type"] }> }>;
-    onDragStart: (item: { label: string; type?: Node["type"] }) => (e: React.DragEvent) => void
+    onDragStart: (item: { label: string; type?: Node["type"] }) => (e: React.DragEvent) => void;
+    hasWorkspace: boolean;
   }) {
     const [open, setOpen] = useState<Record<string, boolean>>({ input: true, pre: true, feature: true, models: true, eval: true, visual: true, monitor: true, deploy: true, orchestrate: true, nlp: false, cv: false, utils: false });
     const [query, setQuery] = useState("");
@@ -747,10 +905,14 @@ export default function WorkspacePage() {
                     {cat.items.map((item) => (
                       <div
                         key={`${cat.id}-${item.label}`}
-                        className="flex cursor-grab items-center justify-between rounded px-2 py-1 text-xs hover:bg-muted"
-                        draggable
+                        className={`flex items-center justify-between rounded px-2 py-1 text-xs ${
+                          hasWorkspace
+                            ? "cursor-grab hover:bg-muted"
+                            : "cursor-not-allowed opacity-50"
+                        }`}
+                        draggable={hasWorkspace}
                         onDragStart={onDragStart(item)}
-                        title="Drag to canvas"
+                        title={hasWorkspace ? "Drag to canvas" : "Create a workspace first"}
                       >
                         <span className="truncate text-foreground">{item.label}</span>
                         <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -770,28 +932,126 @@ export default function WorkspacePage() {
     <AuthGuard>
       <div className="flex h-screen w-screen flex-col bg-background">
         <header className="border-b border-border bg-background shadow-sm">
-          {/* Top Nav: App icon, title, menu bar, search, share, profile */}
+          {/* Top Nav: App icon, title, search, share, profile */}
           <div className="mx-auto max-w-full px-2">
+            {/* First row: App icon, workspace name, and right controls */}
             <div className="flex h-14 items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <span className="text-lg font-bold">AI</span>
                 </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="relative inline-block">
+                    {/* Hidden span to measure text width */}
+                    <span
+                      ref={workspaceNameMeasureRef}
+                      className="invisible absolute whitespace-pre text-base font-semibold"
+                      aria-hidden="true"
+                    >
+                      {workspaceName || "Untitled Workspace"}
+                    </span>
                     <input
-                      className="bg-transparent text-sm font-medium text-foreground outline-none focus:ring-0"
+                      ref={workspaceNameInputRef}
+                      type="text"
+                      className="bg-transparent text-base font-semibold text-foreground outline-none focus:ring-0 hover:bg-muted/30 px-2 py-1 rounded transition-colors"
                       value={workspaceName}
-                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      onChange={(e) => handleWorkspaceNameChange(e.target.value)}
                       aria-label="Workspace name"
+                      placeholder="Untitled Workspace"
                     />
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Workspace</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground">Projects / Personal / <span className="text-foreground">{workspaceName}</span> • Auto-saved</div>
+                  {workspaceId && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {saveState === "saving" && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Saving...</span>
+                        </div>
+                      )}
+                      {saveState === "saved" && (
+                        <div className="flex items-center gap-1.5 text-green-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Saved</span>
+                        </div>
+                      )}
+                      {saveState === "error" && (
+                        <div className="flex items-center gap-1.5 text-red-600">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <span>Error saving</span>
+                        </div>
+                      )}
+                      {saveState === "idle" && (
+                        <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                      )}
+                    </div>
+                  )}
                 </div>
+              </div>
 
-                {/* Menu bar */}
-                <nav className="ml-4 hidden items-center gap-1 md:flex" onMouseLeave={() => setActiveMenu(null)}>
+              <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 md:flex">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      className="h-8 w-56 rounded-md border border-border bg-background pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      placeholder="Search workspace"
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" className="gap-1">
+                    <Share2 className="h-4 w-4" /> Share
+                  </Button>
+                  <div className="relative">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setRuntimeOpen((o)=>!o)}>
+                      <Cpu className="h-4 w-4" /> {runtimeType}
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                    {runtimeOpen && (
+                      <div className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-border bg-card p-1 shadow-lg">
+                        {["CPU","GPU","TPU"].map((rt) => (
+                          <button key={rt} className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={() => { setRuntimeType(rt as any); setRuntimeOpen(false); }}>
+                            {rt}
+                          </button>
+                        ))}
+                        <div className="my-1 h-px bg-border" />
+                        <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Manage runtimes…</button>
+                      </div>
+                    )}
+                  </div>
+                  <Button size="sm" variant="ghost" aria-label="Notifications">
+                    <Bell className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" aria-label="Comments">
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="relative">
+                  <Button size="sm" variant="ghost" className="gap-1" onClick={() => setAccountOpen((o)=>!o)}>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  {accountOpen && (
+                    <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-border bg-card p-1 shadow-lg">
+                      <div className="px-2 py-2 text-xs text-muted-foreground">
+                        {user ? (user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email) : "Guest"}
+                      </div>
+                      <div className="my-1 h-px bg-border" />
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Profile</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Settings</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Keyboard Shortcuts</button>
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Billing</button>
+                      <div className="my-1 h-px bg-border" />
+                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={signOut}>Sign out</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Second row: Menu bar */}
+            <div className="flex h-10 items-center border-t border-border">
+              <nav className="flex items-center gap-1" onMouseLeave={() => setActiveMenu(null)}>
                   {(["File","Edit","View","Insert","Runtime","Tools","Help"] as const).map((label) => (
                     <div key={label} className="relative">
                       <Button
@@ -808,13 +1068,24 @@ export default function WorkspacePage() {
                           {label==="File" && (
                             <div className="text-sm">
                               <button
-                                className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"
-                                onClick={() => {
-                                  setOpenModalOpen(true);
-                                  setActiveMenu(null);
+                                className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={async () => {
+                                  try {
+                                    const randomName = generateWorkspaceName();
+                                    const newWorkspace = await createWorkspaceMutation.mutateAsync({ name: randomName });
+                                    setWorkspace({
+                                      id: newWorkspace.id,
+                                      name: newWorkspace.name,
+                                      isNew: true,
+                                    });
+                                    setActiveMenu(null);
+                                  } catch (error) {
+                                    console.error("Failed to create workspace:", error);
+                                  }
                                 }}
+                                disabled={createWorkspaceMutation.isPending}
                               >
-                                <Plus className="h-3.5 w-3.5" /> New Workspace
+                                <Plus className="h-3.5 w-3.5" /> {createWorkspaceMutation.isPending ? "Creating..." : "New Workspace"}
                               </button>
                               <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">New from Template</button>
                               <button
@@ -906,71 +1177,13 @@ export default function WorkspacePage() {
                     </div>
                   ))}
                 </nav>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="hidden items-center gap-2 md:flex">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      className="h-8 w-56 rounded-md border border-border bg-background pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                      placeholder="Search workspace"
-                    />
-                  </div>
-                  <Button size="sm" variant="outline" className="gap-1">
-                    <Share2 className="h-4 w-4" /> Share
-                  </Button>
-                  <div className="relative">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setRuntimeOpen((o)=>!o)}>
-                      <Cpu className="h-4 w-4" /> {runtimeType}
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                    {runtimeOpen && (
-                      <div className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-border bg-card p-1 shadow-lg">
-                        {["CPU","GPU","TPU"].map((rt) => (
-                          <button key={rt} className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={() => { setRuntimeType(rt as any); setRuntimeOpen(false); }}>
-                            {rt}
-                          </button>
-                        ))}
-                        <div className="my-1 h-px bg-border" />
-                        <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Manage runtimes…</button>
-                      </div>
-                    )}
-                  </div>
-                  <Button size="sm" variant="ghost" aria-label="Notifications">
-                    <Bell className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" aria-label="Comments">
-                    <MessageSquare className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="relative">
-                  <Button size="sm" variant="ghost" className="gap-1" onClick={() => setAccountOpen((o)=>!o)}>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                  {accountOpen && (
-                    <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-border bg-card p-1 shadow-lg">
-                      <div className="px-2 py-2 text-xs text-muted-foreground">
-                        {user ? (user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email) : "Guest"}
-                      </div>
-                      <div className="my-1 h-px bg-border" />
-                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Profile</button>
-                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Settings</button>
-                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Keyboard Shortcuts</button>
-                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Billing</button>
-                      <div className="my-1 h-px bg-border" />
-                      <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted" onClick={signOut}>Sign out</button>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
+          </div>
 
-            {/* Secondary Toolbar */}
-            <div className="flex h-10 items-center justify-between border-t border-border">
+          {/* Secondary Toolbar */}
+          <div className="border-t border-border">
+            <div className="mx-auto max-w-full px-2">
+              <div className="flex h-10 items-center justify-between">
               <div className="flex items-center gap-1 py-1">
                 <Button size="sm" variant="default" className="gap-1"><Play className="h-4 w-4" /> Run all</Button>
                 <Button size="sm" variant="outline" className="gap-1">Run selected</Button>
@@ -1008,12 +1221,13 @@ export default function WorkspacePage() {
                   <HelpCircle className="h-3.5 w-3.5" /> Help
                 </div>
               </div>
+              </div>
             </div>
           </div>
         </header>
         <div className="flex-1 overflow-hidden">
           <ReactFlowProvider>
-            <CanvasArea showPalette={showPalette} setShowPalette={setShowPalette} isNewWorkspace={isNewWorkspace} />
+            <CanvasArea showPalette={showPalette} setShowPalette={setShowPalette} isNewWorkspace={isNewWorkspace} hasWorkspace={hasWorkspace()} onSave={debouncedSave} />
           </ReactFlowProvider>
         </div>
 
@@ -1022,17 +1236,21 @@ export default function WorkspacePage() {
           onClose={() => setOpenModalOpen(false)}
           onOpenWorkspace={(workspace) => {
             // Load existing workspace
-            setWorkspaceId(workspace.id);
-            setWorkspaceName(workspace.name);
-            setIsNewWorkspace(false);
+            setWorkspace({
+              id: workspace.id,
+              name: workspace.name,
+              isNew: false,
+            });
             setOpenModalOpen(false);
             // TODO: Load workspace graph data from backend
           }}
           onCreateNew={(workspace) => {
             // Create and open new workspace
-            setWorkspaceId(workspace.id);
-            setWorkspaceName(workspace.name);
-            setIsNewWorkspace(true);
+            setWorkspace({
+              id: workspace.id,
+              name: workspace.name,
+              isNew: true,
+            });
             setOpenModalOpen(false);
           }}
         />
