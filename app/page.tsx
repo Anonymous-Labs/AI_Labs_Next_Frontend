@@ -208,7 +208,7 @@ export default function WorkspacePage() {
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [runtimeType, setRuntimeType] = useState<"CPU" | "GPU" | "TPU">("GPU");
   const [showPalette, setShowPalette] = useState(true);
-  const [openModalOpen, setOpenModalOpen] = useState(false);
+  const [openModalOpen, setOpenModalOpen] = useState(true);
   
   // Debounced save function for graph
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
