@@ -108,6 +108,15 @@ export const add2IntNodeDefinition = {
     return { label: "Add2Int", props: { a: 0, b: 0 } };
   },
   Inspector: Add2IntInspector,
+  ports: {
+    source: {
+      out: { type: "int" },
+    },
+    target: {
+      "in-a": { type: "int" },
+      "in-b": { type: "int" },
+    },
+  },
 };
 
 

@@ -87,6 +87,12 @@ export const integerNodeDefinition = {
     return { label: "Integer", props: { value: 0 } };
   },
   Inspector: IntegerInspector,
+  ports: {
+    source: {
+      out: { type: "int" },
+    },
+    target: {},
+  },
 };
 
 

@@ -52,6 +52,12 @@ export const textNodeDefinition = {
     return { label: "Text", props: { value: "" } };
   },
   Inspector: TextInspector,
+  ports: {
+    source: {},
+    target: {
+      in: { type: "any" },
+    },
+  },
 };
 
 

@@ -27,83 +27,78 @@ import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/layout/Footer";
 import "@xyflow/react/dist/style.css";
 import { ChevronDown, Play, Square, Save, Plus, ZoomIn, ZoomOut, LayoutGrid, Share2, Search, Cpu, Github, HelpCircle, User, Bell, MessageSquare, History, Wand2, FileUp, FileDown, BookOpen, Bug, Eye, EyeOff, PanelLeft, PanelRight, Grid3X3, MoreHorizontal, GitBranch, Upload, Download, Users, Settings as SettingsIcon, CalendarClock, RefreshCw, RotateCw } from "lucide-react";
-import IntegerNode, { integerNodeDefinition, type IntegerNodeData } from "@/components/flow/nodes/IntegerNode";
-import Add2IntNode, { add2IntNodeDefinition } from "@/components/flow/nodes/Add2IntNode";
-import TextNode, { textNodeDefinition } from "@/components/flow/nodes/TextNode";
-import DatasetNode, { datasetNodeDefinition } from "@/components/flow/nodes/DatasetNode";
-import FeatureSelectionNode, { featureSelectionNodeDefinition } from "@/components/flow/nodes/FeatureSelectionNode";
-import TrainTestSplitNode, { trainTestSplitNodeDefinition } from "@/components/flow/nodes/TrainTestSplitNode";
-import LinearRegressionNode, { linearRegressionNodeDefinition } from "@/components/flow/nodes/LinearRegressionNode";
-import PredictNode, { predictNodeDefinition } from "@/components/flow/nodes/PredictNode";
-import EvaluationNode, { evaluationNodeDefinition } from "@/components/flow/nodes/EvaluationNode";
+import { nodeComponents, nodeDefinitions } from "@/lib/flow/nodeRegistry";
 import { Input } from "@/components/ui/input";
+import { OpenWorkspaceModal } from "@/components/workspace/OpenWorkspaceModal";
 
-const initialNodes: Node[] = [
-  { id: "dataset", position: { x: -600, y: -200 }, data: { label: "Dataset: Customer Events" }, type: "input" },
-  { id: "ingest", position: { x: -350, y: -200 }, data: { label: "Ingest: Kafka -> Lake" } },
-  { id: "validate", position: { x: -100, y: -200 }, data: { label: "Validate: Great Expectations" } },
-  { id: "clean", position: { x: 150, y: -200 }, data: { label: "Clean: Nulls & Outliers" } },
-  { id: "feature", position: { x: 400, y: -200 }, data: { label: "Feature Eng: Timewindows" } },
+const initialNodes: Node[] = [];
 
-  { id: "split", position: { x: 650, y: -200 }, data: { label: "Split: Train/Val/Test" } },
-  { id: "train", position: { x: 900, y: -240 }, data: { label: "Train: XGBoost" } },
-  { id: "train2", position: { x: 900, y: -160 }, data: { label: "Train: LightGBM" } },
-  { id: "select", position: { x: 1150, y: -200 }, data: { label: "Model Select: Best Metric" } },
-
-  { id: "eval", position: { x: 1400, y: -200 }, data: { label: "Evaluate: ROC/AUC" }, type: "output" },
-  { id: "explain", position: { x: 1650, y: -240 }, data: { label: "Explain: SHAP" } },
-  { id: "monitor", position: { x: 1650, y: -160 }, data: { label: "Monitor: Drift" } },
-  { id: "deploy", position: { x: 1900, y: -200 }, data: { label: "Deploy: REST Endpoint" }, type: "output" },
-
-  { id: "viz", position: { x: 400, y: 100 }, data: { label: "Visualize: Embeddings" } },
-  { id: "label", position: { x: 150, y: 100 }, data: { label: "Label Studio" } },
-  { id: "augment", position: { x: -100, y: 100 }, data: { label: "Augment: SMOTE" } },
-  { id: "cache", position: { x: -350, y: 100 }, data: { label: "Cache: Feature Store" } },
-  { id: "catalog", position: { x: -600, y: 100 }, data: { label: "Data Catalog" }, type: "input" },
-];
-
-const initialEdges: Edge[] = [
-  { id: "e-dataset-ingest", source: "dataset", target: "ingest" },
-  { id: "e-ingest-validate", source: "ingest", target: "validate" },
-  { id: "e-validate-clean", source: "validate", target: "clean" },
-  { id: "e-clean-feature", source: "clean", target: "feature" },
-  { id: "e-feature-split", source: "feature", target: "split" },
-  { id: "e-split-train", source: "split", target: "train" },
-  { id: "e-split-train2", source: "split", target: "train2" },
-  { id: "e-trains-select-1", source: "train", target: "select" },
-  { id: "e-trains-select-2", source: "train2", target: "select" },
-  { id: "e-select-eval", source: "select", target: "eval" },
-  { id: "e-eval-explain", source: "eval", target: "explain" },
-  { id: "e-eval-monitor", source: "eval", target: "monitor" },
-  { id: "e-eval-deploy", source: "eval", target: "deploy" },
-
-  { id: "e-feature-viz", source: "feature", target: "viz" },
-  { id: "e-label-augment", source: "label", target: "augment" },
-  { id: "e-augment-clean", source: "augment", target: "clean" },
-  { id: "e-cache-feature", source: "cache", target: "feature" },
-  { id: "e-catalog-cache", source: "catalog", target: "cache" },
-];
+const initialEdges: Edge[] = [];
 
 /**
  * Workspace Page - React Flow Canvas
  * Main workspace for AI development with node-based editing
  */
+// Welcome nodes for first-time users
+const getWelcomeNodes = (): Node[] => [
+  {
+    id: "welcome-1",
+    position: { x: 100, y: 100 },
+    data: {
+      label: "👋 Welcome to AI Labs",
+      content: "Start building your AI pipelines by dragging nodes from the palette on the left.",
+    },
+    type: undefined,
+  },
+  {
+    id: "welcome-2",
+    position: { x: 100, y: 250 },
+    data: {
+      label: "📚 Quick Start",
+      content: "• Drag nodes from the palette\n• Connect them to build pipelines\n• Use the Inspector to configure nodes\n• Run your pipeline to see results",
+    },
+    type: undefined,
+  },
+  {
+    id: "welcome-3",
+    position: { x: 100, y: 450 },
+    data: {
+      label: "💡 Tips",
+      content: "• Use Auto Layout to organize your graph\n• Search the palette for specific nodes\n• Check the Inspector for node properties",
+    },
+    type: undefined,
+  },
+];
+
 export default function WorkspacePage() {
   const { signOut, user } = useAuthStore();
   const [activeMenu, setActiveMenu] = useState<null | "File" | "Edit" | "View" | "Insert" | "Runtime" | "Tools" | "Help">(null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [workspaceName, setWorkspaceName] = useState("Untitled Workspace");
+  const [workspaceName, setWorkspaceName] = useState("Welcome to AI Labs");
+  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [runtimeType, setRuntimeType] = useState<"CPU" | "GPU" | "TPU">("GPU");
   const [showPalette, setShowPalette] = useState(true);
+  const [openModalOpen, setOpenModalOpen] = useState(false);
+  const [isNewWorkspace, setIsNewWorkspace] = useState(true);
 
-  function CanvasArea({ showPalette, setShowPalette }: { showPalette: boolean; setShowPalette: (v: boolean) => void }) {
-    const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  function CanvasArea({ showPalette, setShowPalette, isNewWorkspace }: { showPalette: boolean; setShowPalette: (v: boolean) => void; isNewWorkspace: boolean }) {
+    const [nodes, setNodes] = useState<Node[]>(isNewWorkspace ? getWelcomeNodes() : initialNodes);
     const [edges, setEdges] = useState<Edge[]>(initialEdges);
     const idCounter = useRef<number>(1000);
     const { setViewport, zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
     const viewport = useViewport();
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+    // Reset canvas when creating new workspace
+    useEffect(() => {
+      if (isNewWorkspace) {
+        setNodes(getWelcomeNodes());
+        setEdges([]);
+        setSelectedNodeId(null);
+        setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 100);
+      }
+    }, [isNewWorkspace, fitView]);
 
     const onNodesChange = useCallback(
       (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -115,32 +110,59 @@ export default function WorkspacePage() {
       []
     );
 
-    const onConnect = useCallback(
-      (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-      []
+    // Dynamically build nodeTypes and nodeDefs from registry
+    const nodeTypes = useMemo(() => {
+      const types: Record<string, any> = {};
+      Object.entries(nodeComponents).forEach(([type, component]) => {
+        types[type] = component as any;
+      });
+      return types;
+    }, []);
+
+    const nodeDefs = useMemo(() => nodeDefinitions, []);
+
+    // Generic connection validation based on port types from node definitions
+    const isValidConnection = useCallback(
+      (conn: any) => {
+        const src = nodes.find((n) => n.id === conn.source);
+        const tgt = nodes.find((n) => n.id === conn.target);
+        if (!src || !tgt) return false;
+
+        const srcDef = src.type ? (nodeDefs as any)[src.type] : undefined;
+        const tgtDef = tgt.type ? (nodeDefs as any)[tgt.type] : undefined;
+
+        const srcHandleId = (conn.sourceHandle ?? null) as string | null;
+        const tgtHandleId = (conn.targetHandle ?? null) as string | null;
+
+        // Get target port type - this is what we're connecting TO
+        const tgtPortType = tgtDef?.ports?.target?.[tgtHandleId || ""]?.type;
+
+        // If target has no definition or no port type specified, allow (backward compat for old nodes)
+        if (!tgtDef || !tgtPortType) return true;
+
+        // If target accepts "any", allow connection
+        if (tgtPortType === "any") return true;
+
+        // If target requires a specific type, source must have matching type
+        if (!srcDef) return false; // Source has no definition, can't verify type match
+
+        const srcPortType = srcDef.ports?.source?.[srcHandleId || ""]?.type || "any";
+        
+        // Types must match exactly
+        return srcPortType === tgtPortType;
+      },
+      [nodes, nodeDefs]
     );
 
-    const nodeTypes = useMemo(() => ({
-      integer: IntegerNode as any,
-      add2int: Add2IntNode as any,
-      text: TextNode as any,
-      dataset: DatasetNode as any,
-      featureSelection: FeatureSelectionNode as any, // Added FeatureSelectionNode
-      trainTestSplit: TrainTestSplitNode as any, // Added TrainTestSplitNode
-      linearRegression: LinearRegressionNode as any, // Added LinearRegressionNode
-      predict: PredictNode as any, // Added PredictNode
-      evaluation: EvaluationNode as any, // Added EvaluationNode
-    }), []);
-    const nodeDefs = useMemo(() => ({
-      integer: integerNodeDefinition,
-      add2int: add2IntNodeDefinition,
-      text: textNodeDefinition,
-      dataset: datasetNodeDefinition,
-      trainTestSplit: trainTestSplitNodeDefinition, // Added TrainTestSplitNode definition
-      linearRegression: linearRegressionNodeDefinition, // Added LinearRegressionNode definition
-      predict: predictNodeDefinition, // Added PredictNode definition
-      evaluation: evaluationNodeDefinition, // Added EvaluationNode definition
-    }), []);
+    const onConnect = useCallback(
+      (params: Connection) => {
+        if (isValidConnection(params)) {
+          setEdges((eds) => addEdge(params, eds));
+        }
+      },
+      [isValidConnection]
+    );
+
     const edgeTypes = useMemo(() => ({}), []);
 
     const addNode = useCallback(
@@ -391,6 +413,7 @@ export default function WorkspacePage() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onSelectionChange={({ nodes: sel }) => setSelectedNodeId(sel[0]?.id ?? null)}
@@ -784,9 +807,25 @@ export default function WorkspacePage() {
                         <div className="absolute left-0 top-full z-30 mt-1 w-56 rounded-md border border-border bg-card p-1 shadow-lg">
                           {label==="File" && (
                             <div className="text-sm">
-                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"><Plus className="h-3.5 w-3.5" /> New Workspace</button>
+                              <button
+                                className="w-full rounded px-2 py-1.5 text-left hover:bg-muted flex items-center gap-2"
+                                onClick={() => {
+                                  setOpenModalOpen(true);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                <Plus className="h-3.5 w-3.5" /> New Workspace
+                              </button>
                               <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">New from Template</button>
-                              <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Open…</button>
+                              <button
+                                className="w-full rounded px-2 py-1.5 text-left hover:bg-muted"
+                                onClick={() => {
+                                  setOpenModalOpen(true);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                Open…
+                              </button>
                               <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Rename</button>
                               <div className="my-1 h-px bg-border" />
                               <button className="w-full rounded px-2 py-1.5 text-left hover:bg-muted">Make a copy</button>
@@ -974,9 +1013,29 @@ export default function WorkspacePage() {
         </header>
         <div className="flex-1 overflow-hidden">
           <ReactFlowProvider>
-            <CanvasArea showPalette={showPalette} setShowPalette={setShowPalette} />
+            <CanvasArea showPalette={showPalette} setShowPalette={setShowPalette} isNewWorkspace={isNewWorkspace} />
           </ReactFlowProvider>
         </div>
+
+        <OpenWorkspaceModal
+          isOpen={openModalOpen}
+          onClose={() => setOpenModalOpen(false)}
+          onOpenWorkspace={(workspace) => {
+            // Load existing workspace
+            setWorkspaceId(workspace.id);
+            setWorkspaceName(workspace.name);
+            setIsNewWorkspace(false);
+            setOpenModalOpen(false);
+            // TODO: Load workspace graph data from backend
+          }}
+          onCreateNew={(workspace) => {
+            // Create and open new workspace
+            setWorkspaceId(workspace.id);
+            setWorkspaceName(workspace.name);
+            setIsNewWorkspace(true);
+            setOpenModalOpen(false);
+          }}
+        />
       </div>
     </AuthGuard>
   );
