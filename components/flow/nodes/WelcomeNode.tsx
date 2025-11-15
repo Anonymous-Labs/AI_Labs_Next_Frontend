@@ -10,7 +10,7 @@ type WelcomeNodeData = {
 
 export default function WelcomeNode({ data }: { data: WelcomeNodeData }) {
   return (
-    <div className="rounded-lg border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg min-w-[400px] max-w-[600px]">
+    <div className="rounded-lg border-2 bg-white from-primary/10 to-primary/5 shadow-lg min-w-[400px] max-w-[600px]">
       {/* Input handle on the left */}
       <Handle type="target" position={Position.Left} id="target" className="w-3 h-3 bg-primary" />
       
