@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Handle, Position } from "@xyflow/react";
 
 type WelcomeNodeData = {
   label?: string;
@@ -9,15 +10,18 @@ type WelcomeNodeData = {
 
 export default function WelcomeNode({ data }: { data: WelcomeNodeData }) {
   return (
-    <div className="rounded-lg border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 shadow-md min-w-[300px] max-w-[400px]">
-      <div className="border-b border-primary/20 px-4 py-3 bg-primary/10">
-        <h3 className="text-sm font-semibold text-foreground">{data?.label || "Welcome"}</h3>
-      </div>
-      <div className="p-4">
-        <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
-          {data?.content || ""}
+    <div className="rounded-lg border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg min-w-[400px] max-w-[600px]">
+      {/* Input handle on the left */}
+      <Handle type="target" position={Position.Left} id="target" className="w-3 h-3 bg-primary" />
+      
+      <div className="p-5">
+        <p className="text-sm text-foreground whitespace-pre-line leading-relaxed font-mono">
+          {data?.label || data?.content || "Welcome"}
         </p>
       </div>
+      
+      {/* Output handle on the right */}
+      <Handle type="source" position={Position.Right} id="source" className="w-3 h-3 bg-primary" />
     </div>
   );
 }

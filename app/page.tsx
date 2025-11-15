@@ -44,34 +44,157 @@ const initialEdges: Edge[] = [];
  * Workspace Page - React Flow Canvas
  * Main workspace for AI development with node-based editing
  */
-// Welcome nodes for first-time users
+// Welcome nodes for first-time users - Rich connected graph with all content in labels
+// Arranged in series with increased spacing to prevent overlapping
 const getWelcomeNodes = (): Node[] => [
+  // Main title node
   {
-    id: "welcome-1",
-    position: { x: 100, y: 100 },
+    id: "welcome-title",
+    position: { x: 100, y: 300 },
     data: {
-      label: "👋 Welcome to AI Labs",
-      content: "Start building your AI pipelines by dragging nodes from the palette on the left.",
+      label: "👋 Welcome to AI Labs\n\nBuild, train, and deploy AI models with visual pipelines\n\nCreate a workspace to get started!",
+      content: "",
     },
-    type: undefined,
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Latest Updates node
+  {
+    id: "welcome-updates",
+    position: { x: 800, y: 300 },
+    data: {
+      label: "📢 Latest Updates & Changelog\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nNov 15, 2024 - Enhanced node connection validation\n• Improved type checking for node connections\n• Better error messages for invalid connections\n• Support for 'any' type connections\n\nNov 10, 2024 - New ML models added to palette\n• Added Linear Regression node\n• Added XGBoost, LightGBM, CatBoost support\n• New evaluation metrics nodes\n\nNov 5, 2024 - Auto-save feature enabled\n• Automatic workspace saving on changes\n• Visual save state indicators\n• Debounced save to reduce API calls\n\nOct 28, 2024 - Workspace management improved\n• Create workspace with random AI names\n• Workspace name auto-save\n• Better workspace state management\n\nOct 20, 2024 - Initial release\n• 100+ pre-built nodes\n• Visual pipeline builder\n• React Flow integration",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Quick Start Guide node
+  {
+    id: "welcome-quickstart",
+    position: { x: 1500, y: 300 },
+    data: {
+      label: "🚀 Quick Start Guide\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n1. Create a New Workspace\n   • Click 'File' menu → 'New Workspace'\n   • A workspace will be created with a random AI-related name\n   • You can rename it by clicking on the workspace name\n\n2. Add Nodes to Canvas\n   • Open the palette on the left (if collapsed)\n   • Drag nodes from palette categories\n   • Drop them anywhere on the canvas\n\n3. Connect Nodes\n   • Drag from a node's output handle (right side)\n   • Connect to another node's input handle (left side)\n   • Connections are type-validated automatically\n\n4. Configure Nodes\n   • Click on any node to select it\n   • Use the Inspector panel on the right\n   • Modify node properties and settings\n\n5. Run Your Pipeline\n   • Use the 'Run all' button in the toolbar\n   • Or run selected nodes only\n   • View results in node outputs\n\n💡 Pro Tips:\n• Use Auto Layout to organize your graph\n• Search the palette for specific nodes\n• Workspace auto-saves your changes",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Developer Notes node
+  {
+    id: "welcome-notes",
+    position: { x: 2200, y: 300 },
+    data: {
+      label: "📚 Developer Notes\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nBasic Workflow:\n• Drag nodes from palette to canvas\n• Connect nodes to build data pipelines\n• Configure properties in Inspector panel\n• Nodes execute in order based on connections\n\nKey Features:\n• Type-safe node connections\n• Real-time data flow visualization\n• Auto-save workspace changes\n• Workspace name auto-saves on edit\n• Dynamic node registry system\n\nTips & Tricks:\n• Use Auto Layout button to organize nodes\n• Search palette for specific nodes (supports 1000+ nodes)\n• Inspector shows node-specific configuration\n• Connection validation prevents type mismatches\n• Welcome nodes are now draggable!\n\nTechnical Details:\n• Built with Next.js, React Flow, Zustand\n• TanStack Query for API calls\n• Zod for type validation\n• Shadcn UI components\n• Tailwind CSS for styling",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Key Features node
+  {
+    id: "welcome-features",
+    position: { x: 2900, y: 300 },
+    data: {
+      label: "✨ Key Features\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n• Visual Pipeline Builder\n  - Drag & drop interface\n  - Intuitive node connections\n  - Real-time graph updates\n\n• Extensive Node Library\n  - 1000+ pre-built nodes\n  - ML models, data processing, evaluation\n  - Custom node support\n\n• Smart Features\n  - Auto-save workspace changes\n  - Type-safe node connections\n  - Auto layout for organization\n  - Search & filter in palette\n\n• Developer Experience\n  - Inspector panel for configuration\n  - Workspace management\n  - Collaborative editing ready\n  - API integration ready\n\n• User Experience\n  - Pan and zoom canvas\n  - Fit view to content\n  - Mini map navigation\n  - Keyboard shortcuts\n\n• Data Flow\n  - Real-time data visualization\n  - Animated connections\n  - Type validation\n  - Error handling",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Getting Started node
+  {
+    id: "welcome-getting-started",
+    position: { x: 3600, y: 300 },
+    data: {
+      label: "🎯 Getting Started\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nStep 1: Create Workspace\n• Click 'File' menu at the top\n• Select 'New Workspace'\n• A workspace will be created automatically\n• Workspace name appears in the header\n\nStep 2: Add Nodes\n• Once workspace is created, palette becomes active\n• Browse categories in the left palette\n• Drag any node to the canvas\n• Nodes appear where you drop them\n\nStep 3: Build Pipeline\n• Connect nodes by dragging from output to input\n• Blue animated lines show data flow\n• Invalid connections are prevented\n• Type-safe connection validation\n\nStep 4: Configure\n• Click any node to select it\n• Inspector panel shows on the right\n• Modify node properties\n• Changes are saved automatically\n\nStep 5: Execute\n• Use 'Run all' button in toolbar\n• Or 'Run selected' for specific nodes\n• View results in node outputs\n• Check execution logs\n\nRemember: Create a workspace first to enable all features!",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+  // Best Practices node
+  {
+    id: "welcome-practices",
+    position: { x: 4300, y: 300 },
+    data: {
+      label: "⭐ Best Practices\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nPipeline Design:\n• Start with simple pipelines and iterate\n• Use descriptive workspace names\n• Organize nodes with Auto Layout\n• Group related nodes together\n• Keep pipelines readable and maintainable\n\nNode Management:\n• Test connections before running\n• Validate your pipeline structure\n• Use search to find specific nodes\n• Check node documentation in Inspector\n• Understand node input/output types\n\nWorkspace Management:\n• Save frequently (auto-save enabled)\n• Use meaningful workspace names\n• Organize complex pipelines\n• Document your workflows\n• Version control your pipelines\n\nPerformance:\n• Optimize node order\n• Use caching where possible\n• Monitor execution times\n• Handle errors gracefully\n• Test with small datasets first\n\nCollaboration:\n• Share workspace with team\n• Document node configurations\n• Use consistent naming\n• Review pipeline changes\n• Maintain clean graph structure",
+      content: "",
+    },
+    type: "welcome",
+    draggable: true,
+    selectable: true,
+  },
+];
+
+// Welcome edges showing animated flow connections in series
+const getWelcomeEdges = (): Edge[] => [
+  // Series connection: title -> updates -> quickstart -> notes -> features -> getting-started -> practices
+  {
+    id: "welcome-e1",
+    source: "welcome-title",
+    target: "welcome-updates",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#3b82f6", strokeWidth: 3 },
+    type: "smoothstep",
   },
   {
-    id: "welcome-2",
-    position: { x: 100, y: 250 },
-    data: {
-      label: "📚 Quick Start",
-      content: "• Drag nodes from the palette\n• Connect them to build pipelines\n• Use the Inspector to configure nodes\n• Run your pipeline to see results",
-    },
-    type: undefined,
+    id: "welcome-e2",
+    source: "welcome-updates",
+    target: "welcome-quickstart",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#10b981", strokeWidth: 3 },
+    type: "smoothstep",
   },
   {
-    id: "welcome-3",
-    position: { x: 100, y: 450 },
-    data: {
-      label: "💡 Tips",
-      content: "• Use Auto Layout to organize your graph\n• Search the palette for specific nodes\n• Check the Inspector for node properties",
-    },
-    type: undefined,
+    id: "welcome-e3",
+    source: "welcome-quickstart",
+    target: "welcome-notes",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#8b5cf6", strokeWidth: 3 },
+    type: "smoothstep",
+  },
+  {
+    id: "welcome-e4",
+    source: "welcome-notes",
+    target: "welcome-features",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#f59e0b", strokeWidth: 3 },
+    type: "smoothstep",
+  },
+  {
+    id: "welcome-e5",
+    source: "welcome-features",
+    target: "welcome-getting-started",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#ec4899", strokeWidth: 3 },
+    type: "smoothstep",
+  },
+  {
+    id: "welcome-e6",
+    source: "welcome-getting-started",
+    target: "welcome-practices",
+    sourceHandle: "source",
+    targetHandle: "target",
+    animated: true,
+    style: { stroke: "#06b6d4", strokeWidth: 3 },
+    type: "smoothstep",
   },
 ];
 
@@ -204,7 +327,7 @@ export default function WorkspacePage() {
 
   function CanvasArea({ showPalette, setShowPalette, isNewWorkspace, hasWorkspace, onSave }: { showPalette: boolean; setShowPalette: (v: boolean) => void; isNewWorkspace: boolean; hasWorkspace: boolean; onSave: (nodes: Node[], edges: Edge[]) => void }) {
     const [nodes, setNodes] = useState<Node[]>(isNewWorkspace ? getWelcomeNodes() : initialNodes);
-    const [edges, setEdges] = useState<Edge[]>(initialEdges);
+    const [edges, setEdges] = useState<Edge[]>(isNewWorkspace ? getWelcomeEdges() : initialEdges);
     const idCounter = useRef<number>(1000);
     const { setViewport, zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
     const viewport = useViewport();
@@ -214,21 +337,40 @@ export default function WorkspacePage() {
     useEffect(() => {
       if (isNewWorkspace) {
         setNodes(getWelcomeNodes());
-        setEdges([]);
+        setEdges(getWelcomeEdges());
         setSelectedNodeId(null);
-        setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 100);
+        // Center the viewport on the first "Welcome to AI Labs" node
+        // The first node is at position { x: 100, y: 300 }
+        // We'll center it in the viewport with a reasonable zoom level
+        setTimeout(() => {
+          // Get viewport dimensions (default to common screen size if not available)
+          const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          
+          // Node position
+          const nodeX = 100;
+          const nodeY = 300;
+          const zoom = 1.0;
+          
+          // Calculate viewport position to center the node
+          // React Flow viewport transform: x = -nodeX * zoom + viewportWidth/2
+          const x = -nodeX * zoom + viewportWidth / 2;
+          const y = -nodeY * zoom + viewportHeight / 2;
+          
+          setViewport({ x, y, zoom }, { duration: 400 });
+        }, 100);
       }
-    }, [isNewWorkspace, fitView]);
+    }, [isNewWorkspace, setViewport]);
 
-    const onNodesChange = useCallback(
-      (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-      []
-    );
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
+    []
+  );
 
-    const onEdgesChange = useCallback(
-      (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-      []
-    );
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    []
+  );
     
     // Auto-save when nodes or edges change (debounced)
     const isInitialMount = useRef(true);
@@ -289,7 +431,7 @@ export default function WorkspacePage() {
       [nodes, nodeDefs]
     );
 
-    const onConnect = useCallback(
+  const onConnect = useCallback(
       (params: Connection) => {
         if (isValidConnection(params)) {
           setEdges((eds) => addEdge(params, eds));
@@ -298,7 +440,7 @@ export default function WorkspacePage() {
       [isValidConnection]
     );
 
-    const edgeTypes = useMemo(() => ({}), []);
+  const edgeTypes = useMemo(() => ({}), []);
 
     const addNode = useCallback(
       (label: string, type?: Node["type"], extraData?: Record<string, unknown>) => {
@@ -937,8 +1079,8 @@ export default function WorkspacePage() {
             {/* First row: App icon, workspace name, and right controls */}
             <div className="flex h-14 items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <span className="text-lg font-bold">AI</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <span className="text-lg font-bold">AI</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="relative inline-block">
@@ -1204,7 +1346,7 @@ export default function WorkspacePage() {
                 </Button>
                 <Button size="sm" variant="ghost" className="gap-1">
                   <ZoomOut className="h-4 w-4" />
-                </Button>
+              </Button>
                 <Button size="sm" variant="ghost" className="gap-1"><Eye className="h-4 w-4" /> Preview</Button>
               </div>
               <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">

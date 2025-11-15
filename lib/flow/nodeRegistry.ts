@@ -20,6 +20,7 @@ import TrainTestSplitNode, { trainTestSplitNodeDefinition } from "@/components/f
 import LinearRegressionNode, { linearRegressionNodeDefinition } from "@/components/flow/nodes/LinearRegressionNode";
 import PredictNode, { predictNodeDefinition } from "@/components/flow/nodes/PredictNode";
 import EvaluationNode, { evaluationNodeDefinition } from "@/components/flow/nodes/EvaluationNode";
+import WelcomeNode from "@/components/flow/nodes/WelcomeNode";
 
 /**
  * Node Components Registry
@@ -35,6 +36,7 @@ export const nodeComponents = {
   linearRegression: LinearRegressionNode,
   predict: PredictNode,
   evaluation: EvaluationNode,
+  welcome: WelcomeNode,
 } as const;
 
 /**
