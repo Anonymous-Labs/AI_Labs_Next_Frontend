@@ -166,13 +166,13 @@ export function OpenWorkspaceModal({ isOpen, onClose, onOpenWorkspace, onCreateN
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-card rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col border border-border"
+        className="bg-card rounded-lg shadow-xl w-full max-w-2xl h-[600px] flex flex-col border border-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
           <h2 className="text-lg font-semibold text-foreground">Open workspace</h2>
           <Button size="sm" variant="ghost" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
@@ -180,7 +180,7 @@ export function OpenWorkspaceModal({ isOpen, onClose, onOpenWorkspace, onCreateN
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-border px-6">
+        <div className="border-b border-border px-6 shrink-0">
           <div className="flex gap-1 -mb-px">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -202,11 +202,11 @@ export function OpenWorkspaceModal({ isOpen, onClose, onOpenWorkspace, onCreateN
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6">{renderTabContent()}</div>
+        {/* Content - Fixed height with scrolling */}
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">{renderTabContent()}</div>
 
         {/* Footer */}
-        <div className="border-t border-border px-6 py-4 flex items-center justify-between">
+        <div className="border-t border-border px-6 py-4 flex items-center justify-between shrink-0">
           <div className="text-xs text-muted-foreground">
             {createWorkspaceMutation.error && (
               <Alert variant="destructive" className="mb-2">
